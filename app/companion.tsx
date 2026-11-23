@@ -63,6 +63,10 @@ function MembershipPlans({region, setRegion, annual, setAnnual}: {
 }
 
 export default function Companion({viewerKey}:{viewerKey:string}) {
+  return <CompanionSession key={viewerKey} viewerKey={viewerKey}/>;
+}
+
+function CompanionSession({viewerKey}:{viewerKey:string}) {
   const [billingRegion, setBillingRegion] = useState<BillingRegion>('cn');
   const [annual, setAnnual] = useState(false);
   const [saved,setSaved]=useState<Saved>(initial),[ready,setReady]=useState(false),[page,setPage]=useState<Page>('home');
@@ -73,6 +77,20 @@ export default function Companion({viewerKey}:{viewerKey:string}) {
   const [confirm,setConfirm]=useState<'chat'|'all'|null>(null);
   const control=useRef<AbortController|null>(null),generation=useRef(0),busyRef=useRef(false),lastRequest=useRef<{id:string;body:Payload}|null>(null),end=useRef<HTMLDivElement>(null);
   const key='wanqing-private-v1:'+viewerKey;
+
+  const draftKey = key + ':draft';
+  const [readingHistory, setReadingHistory] = useState(false);
+  useEffect(() => {
+    try { setDraft((sessionStorage.getItem(draftKey) || '').slice(0, 2000)); }
+    catch { /* Drafts still work in memory when storage is unavailable. */ }
+  }, [draftKey]);
+  useEffect(() => {
+    if (!ready) return;
+    try {
+      if (draft) sessionStorage.setItem(draftKey, draft);
+      else sessionStorage.removeItem(draftKey);
+    } catch { /* Session storage is optional. */ }
+  }, [draft, draftKey, ready]);
 
   useEffect(()=>{
     try {
@@ -90,10 +108,11 @@ export default function Companion({viewerKey}:{viewerKey:string}) {
   },[key]);
   useEffect(()=>{if(ready)try{localStorage.setItem(key,JSON.stringify(saved));}catch{setToast('浏览器未能保存记录，请及时导出。');}},[saved,ready,key]);
   useEffect(()=>{if(toast){const t=setTimeout(()=>setToast(''),4200);return()=>clearTimeout(t);}},[toast]);
-  useEffect(()=>{end.current?.scrollIntoView({behavior:'smooth',block:'end'});},[saved.messages.length,busy,page,error]);
+  useEffect(()=>{if (!readingHistory) end.current?.scrollIntoView({block:'end'});},[saved.messages.length,busy,page,error,readingHistory]);
   function stop(){generation.current++;control.current?.abort();control.current=null;busyRef.current=false;setBusy(false);}
   function resetContext(){stop();lastRequest.current=null;setError('');}
   function enter(scene:Scene){
+    setReadingHistory(false);
     if(!saved.adult){setConsent(scene);setAgreed(false);return;}
     if(saved.scene!==scene){resetContext();setSaved(s=>({...s,scene,contextAfter:Date.now()}));}
     setPage('chat');
@@ -119,6 +138,7 @@ export default function Companion({viewerKey}:{viewerKey:string}) {
   function send(text=draft){
     const value=text.trim();if(!value||busyRef.current||!ready)return;
     if(!saved.adult){setConsent(saved.scene);return;}
+    setReadingHistory(false);
     const message:Message={id:uuid(),role:'user',text:value.slice(0,2000),at:Date.now(),scene:saved.scene};
     let history=saved.messages.filter(m=>m.at>saved.contextAfter).slice(-19).map(m=>({role:m.role,content:m.text.slice(0,2000)}));
     while(history.reduce((n,m)=>n+m.content.length,0)>14000)history=history.slice(1);
@@ -164,14 +184,14 @@ export default function Companion({viewerKey}:{viewerKey:string}) {
       {page==='home'&&<div className="page-scroll home-page">
         <div className="portrait-card"><span className="portrait-label"><span/> AI COMPANION</span><div className="portrait-sun"/><div className="portrait-arch"><span>晚</span><Flower2 size={62} strokeWidth={.7}/></div><div className="portrait-caption"><span>一起，把日子过得柔软一点。</span><strong>晚晴 <small>Wǎn qíng</small></strong></div></div>
         <div className="hello"><span className="eyebrow">{lastReply?'接着上次的话':'很高兴，在这里遇见你'}</span><h2>{saved.nickname ? `${saved.nickname}，今天过得怎么样？` : '今天过得怎么样？'}</h2><p>{lastReply?lastReply.text.slice(0,90)+(lastReply.text.length>90?'…':''):'我是晚晴。喜欢雨后散步、旧书店，还有认真听完一个故事。今天，想从哪件小事说起？'}</p>{!lastReply&&<small className="script-label">角色开场白</small>}</div>
-        <button className="primary big" onClick={()=>enter(saved.scene)} disabled={!ready}><MessageCircle size={18}/> {saved.messages.length?'继续上次的聊天':'免费和晚晴聊聊'}<ArrowRight size={18}/></button>
+        <button className="primary big" onClick={()=>enter(saved.scene)} disabled={!ready}><MessageCircle size={18}/> {draft.trim()?'继续写草稿':saved.messages.length?'继续上次的聊天':'免费和晚晴聊聊'}<ArrowRight size={18}/></button>
         <MembershipPlans region={billingRegion} setRegion={setBillingRegion} annual={annual} setAnnual={setAnnual}/>
         <button className="scene-card" onClick={()=>enter('walk')}><span className="scene-icon"><Umbrella size={24} strokeWidth={1.4}/></span><span><strong>去雨后的街上走走</strong><small>虚拟约会 · 一段不赶时间的散步</small></span><ChevronRight size={17}/></button>
         <p className="home-foot"><span className={status?.configured?'status-dot':'status-dot muted-dot'}/>{status?.configured?'真实模型已配置':'正在等待模型连接'}<span>只需把话说给她听</span></p>
       </div>}
       {page==='chat'&&<div className="chat-page">
         {saved.scene==='walk'&&<div className="scene-banner"><Umbrella size={15}/><span>雨后散步 · 虚拟情境</span><button onClick={()=>{resetContext();setSaved(s=>({...s,scene:'daily',contextAfter:Date.now()}));setToast('已回到日常聊天，虚拟情境不会带入新上下文。');}}>结束约会</button></div>}
-        <div className="chat-scroll" aria-live="polite" aria-busy={busy}>
+        <div className="chat-scroll" onScroll={event=>{const list=event.currentTarget;setReadingHistory(list.scrollHeight-list.scrollTop-list.clientHeight>80);}} aria-live="polite" aria-busy={busy}>
           <div className="conversation-note"><Flower2 size={18}/><span>这里是你和晚晴的 AI 对话</span><small>聊天与记忆保存在当前浏览器</small></div>
           {!saved.messages.length&&<div className="opening"><span className="tiny-avatar"><Flower2 size={20}/></span><div><p>{saved.scene==='walk'?'雨刚停。想不想一起沿着街边走一段？我们可以慢慢聊。':'你来啦。今天有什么想说的？开心的小事，或是藏了一整天的心事，都可以。'}</p><small>角色开场白 · 非模型回复</small></div></div>}
           {saved.messages.map((m,i)=><div key={m.id}>
@@ -179,10 +199,11 @@ export default function Companion({viewerKey}:{viewerKey:string}) {
             <div className={'message '+m.role}><div className="bubble">{m.text}</div><div className="message-meta"><span>{m.role==='assistant'?'晚晴 · AI':'你'} · {time(m.at)}{m.scene==='walk'?' · 虚拟约会':''}</span>{m.role==='user'&&m.scene!=='walk'&&<button aria-label="将这条消息存为记忆" title="存为记忆" onClick={()=>setEditing({id:null,text:m.text.slice(0,150)})}><Bookmark size={12}/></button>}</div>{m.role==='assistant'&&m.model&&<small className="model-meta">{m.model} · {m.latency} 秒</small>}</div>
           </div>)}
           {busy&&<div className="typing"><span/><span/><span/><small>晚晴正在想怎么回应…</small></div>}
-          {error&&<div className="chat-error" role="alert"><p>{error}</p>{lastRequest.current&&<button onClick={()=>{const r=lastRequest.current;if(r)void requestReply(r.body,r.id);}}>重试这条消息</button>}<small>本次未生成回复</small></div>}
+          {error&&<div className="chat-error" role="alert"><p>{error}</p>{lastRequest.current&&<button onClick={()=>{const r=lastRequest.current;if(r)void requestReply(r.body,r.id);}}>重试这条消息</button>}<small>消息已保留，无需重新输入</small></div>}
           <div ref={end}/>
         </div>
         {!saved.messages.length&&!busy&&!draft.trim()&&<div className="prompts">{(saved.scene==='walk'?['陪我走走吧','想听听你眼里的雨后']:['今天有点累','分享一件开心的小事']).map(t=><button key={t} onClick={()=>{setDraft(t);messageInput.current?.focus();}}>{t}</button>)}</div>}
+        {readingHistory && <button type="button" className="text-button" style={{alignSelf:'center',padding:'8px 12px'}} onClick={()=>{end.current?.scrollIntoView({block:'end'});setReadingHistory(false);}}>回到最新消息 ↓</button>}
         <form className="composer" onSubmit={e=>{e.preventDefault();send();}}><label className="sr-only" htmlFor="message">给晚晴发消息</label><textarea ref={messageInput} id="message" placeholder="和晚晴说点什么…" maxLength={2000} value={draft} rows={1} onChange={e=>setDraft(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing&&e.nativeEvent.keyCode!==229&&!window.matchMedia('(pointer: coarse)').matches){e.preventDefault();send();}}}/>{busy?<button type="button" className="send-button" aria-label="停止等待回复" onClick={()=>{stop();setError('已停止等待。需要时可以重试这条消息。');}}><Square size={16}/></button>:<button className="send-button" aria-label="发送消息" disabled={!draft.trim()||!ready}><Send size={17}/></button>}</form><p className="composer-note">{draft.length>=1800?`${draft.length} / 2000 字`:'晚晴是 AI · 回复可能不准确'}</p>
       </div>}
       {page==='memories'&&<div className="page-scroll memories-page"><div className="section-heading"><span className="eyebrow">LITTLE THINGS, HELD CLOSE</span><h2>记得你在意的。</h2><p>只有你确认保存的小事，才会随下一次对话发给晚晴。</p></div><div className="stats"><div><strong>{totalDays}</strong><span>有聊过天的日子</span></div><div><strong>{saved.memories.length}<small> / 12</small></strong><span>你确认的记忆</span></div></div><div className="section-label"><strong>关于你的小事</strong><button className="text-button" onClick={()=>setEditing({id:null,text:''})} disabled={saved.memories.length>=12}><Plus size={15}/>添加记忆</button></div>
