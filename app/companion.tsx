@@ -94,6 +94,13 @@ export default function Companion({viewerKey}:{viewerKey:string}) {
     const url=URL.createObjectURL(new Blob([JSON.stringify({exportedAt:new Date().toISOString(),...saved},null,2)],{type:'application/json'}));
     const a=document.createElement('a');a.href=url;a.download='wanqing-records.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);setToast('已导出本机聊天与记忆。');
   }
+  const messageInput = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const input = messageInput.current;
+    if (!input) return;
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight + 2, 112) + 'px';
+  }, [draft, page]);
   const lastReply=[...saved.messages].reverse().find(m=>m.role==='assistant');
   const totalDays=new Set(saved.messages.map(m=>new Date(m.at).toLocaleDateString())).size;
   return <main className="workspace">
@@ -106,8 +113,8 @@ export default function Companion({viewerKey}:{viewerKey:string}) {
       <header className="app-header"><div className="header-left">{page==='chat'?<button className="icon-button" aria-label="返回首页" onClick={()=>setPage('home')}><ArrowLeft size={20}/></button>:<span className="tiny-avatar"><Flower2 size={21}/></span>}<div><strong>{page==='memories'?'我们的小事':page==='settings'?'我的空间':'晚晴'}</strong><small>{page==='chat'?'AI 女友 · 回复由模型生成':page==='memories'?'被认真记下的，才会被记住':page==='settings'?'按你的节奏相处':'26 岁 · 虚构成年 AI 角色'}</small></div></div><button className="icon-button" aria-label={page==='chat'?'清空聊天':'打开设置'} onClick={()=>page==='chat'?setConfirm('chat'):setPage('settings')}>{page==='chat'?<Trash2 size={18}/>:<Settings2 size={19}/>}</button></header>
       {page==='home'&&<div className="page-scroll home-page">
         <div className="portrait-card"><span className="portrait-label"><span/> AI COMPANION</span><div className="portrait-sun"/><div className="portrait-arch"><span>晚</span><Flower2 size={62} strokeWidth={.7}/></div><div className="portrait-caption"><span>一起，把日子过得柔软一点。</span><strong>晚晴 <small>Wǎn qíng</small></strong></div></div>
-        <div className="hello"><span className="eyebrow">{lastReply?'接着上次的话':'很高兴，在这里遇见你'}</span><h2>想听听你的今天。</h2><p>{lastReply?lastReply.text.slice(0,90)+(lastReply.text.length>90?'…':''):'我是晚晴。喜欢雨后散步、旧书店，还有认真听完一个故事。今天，想从哪件小事说起？'}</p>{!lastReply&&<small className="script-label">角色开场白</small>}</div>
-        <button className="primary big" onClick={()=>enter('daily')} disabled={!ready}><MessageCircle size={18}/> {saved.messages.length?'继续和她聊聊':'聊聊今天'}<ArrowRight size={18}/></button>
+        <div className="hello"><span className="eyebrow">{lastReply?'接着上次的话':'很高兴，在这里遇见你'}</span><h2>{saved.nickname ? `${saved.nickname}，今天过得怎么样？` : '今天过得怎么样？'}</h2><p>{lastReply?lastReply.text.slice(0,90)+(lastReply.text.length>90?'…':''):'我是晚晴。喜欢雨后散步、旧书店，还有认真听完一个故事。今天，想从哪件小事说起？'}</p>{!lastReply&&<small className="script-label">角色开场白</small>}</div>
+        <button className="primary big" onClick={()=>enter(saved.scene)} disabled={!ready}><MessageCircle size={18}/> {saved.messages.length?'继续上次的聊天':'聊聊今天'}<ArrowRight size={18}/></button>
         <button className="scene-card" onClick={()=>enter('walk')}><span className="scene-icon"><Umbrella size={24} strokeWidth={1.4}/></span><span><strong>去雨后的街上走走</strong><small>虚拟约会 · 一段不赶时间的散步</small></span><ChevronRight size={17}/></button>
         <p className="home-foot"><span className={status?.configured?'status-dot':'status-dot muted-dot'}/>{status?.configured?'真实模型已配置':'正在等待模型连接'}<span>只需把话说给她听</span></p>
       </div>}
@@ -124,8 +131,8 @@ export default function Companion({viewerKey}:{viewerKey:string}) {
           {error&&<div className="chat-error" role="alert"><p>{error}</p>{lastRequest.current&&<button onClick={()=>{const r=lastRequest.current;if(r)void requestReply(r.body,r.id);}}>重试这条消息</button>}<small>本次未生成回复</small></div>}
           <div ref={end}/>
         </div>
-        {!saved.messages.length&&!busy&&<div className="prompts">{(saved.scene==='walk'?['陪我走走吧','想听听你眼里的雨后']:['今天有点累','分享一件开心的小事']).map(t=><button key={t} onClick={()=>send(t)}>{t}</button>)}</div>}
-        <form className="composer" onSubmit={e=>{e.preventDefault();send();}}><label className="sr-only" htmlFor="message">给晚晴发消息</label><textarea id="message" placeholder="和晚晴说点什么…" maxLength={2000} value={draft} rows={1} onChange={e=>setDraft(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();send();}}}/>{busy?<button type="button" className="send-button" aria-label="停止等待回复" onClick={()=>{stop();setError('已停止等待。需要时可以重试这条消息。');}}><Square size={16}/></button>:<button className="send-button" aria-label="发送消息" disabled={!draft.trim()||!ready}><Send size={17}/></button>}</form><p className="composer-note">AI 回复可能不准确 · 你可以随时结束聊天</p>
+        {!saved.messages.length&&!busy&&!draft.trim()&&<div className="prompts">{(saved.scene==='walk'?['陪我走走吧','想听听你眼里的雨后']:['今天有点累','分享一件开心的小事']).map(t=><button key={t} onClick={()=>{setDraft(t);messageInput.current?.focus();}}>{t}</button>)}</div>}
+        <form className="composer" onSubmit={e=>{e.preventDefault();send();}}><label className="sr-only" htmlFor="message">给晚晴发消息</label><textarea ref={messageInput} id="message" placeholder="和晚晴说点什么…" maxLength={2000} value={draft} rows={1} onChange={e=>setDraft(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing&&e.nativeEvent.keyCode!==229&&!window.matchMedia('(pointer: coarse)').matches){e.preventDefault();send();}}}/>{busy?<button type="button" className="send-button" aria-label="停止等待回复" onClick={()=>{stop();setError('已停止等待。需要时可以重试这条消息。');}}><Square size={16}/></button>:<button className="send-button" aria-label="发送消息" disabled={!draft.trim()||!ready}><Send size={17}/></button>}</form><p className="composer-note">{draft.length>=1800?`${draft.length} / 2000 字`:'晚晴是 AI · 回复可能不准确'}</p>
       </div>}
       {page==='memories'&&<div className="page-scroll memories-page"><div className="section-heading"><span className="eyebrow">LITTLE THINGS, HELD CLOSE</span><h2>记得你在意的。</h2><p>只有你确认保存的小事，才会随下一次对话发给晚晴。</p></div><div className="stats"><div><strong>{totalDays}</strong><span>有聊过天的日子</span></div><div><strong>{saved.memories.length}<small> / 12</small></strong><span>你确认的记忆</span></div></div><div className="section-label"><strong>关于你的小事</strong><button className="text-button" onClick={()=>setEditing({id:null,text:''})} disabled={saved.memories.length>=12}><Plus size={15}/>添加记忆</button></div>
         {!saved.memories.length?<div className="empty-state"><Bookmark size={30} strokeWidth={1.2}/><h3>从一件小事开始</h3><p>比如你喜欢的称呼、口味，<br/>或希望晚晴尊重的相处边界。</p><button className="secondary" onClick={()=>setEditing({id:null,text:''})}>记下第一件小事</button></div>:<div className="memory-list">{saved.memories.map(m=><article className="memory-card" key={m.id}><span className="memory-flower"><Flower2 size={20} strokeWidth={1.2}/></span><div><p>{m.text}</p><small>你确认保存 · {date(m.at)}</small><div className="memory-actions"><button onClick={()=>setEditing({id:m.id,text:m.text})}>编辑</button><button onClick={()=>deleteMemory(m.id)}>删除</button></div></div></article>)}</div>}
