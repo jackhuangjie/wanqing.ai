@@ -14,6 +14,31 @@ const uuid=()=>crypto.randomUUID();
 const date=(at:number)=>new Date(at).toLocaleDateString('zh-CN',{month:'long',day:'numeric'});
 const time=(at:number)=>new Date(at).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',hour12:false});
 
+function MembershipPlans() {
+  const [annual, setAnnual] = useState(false);
+  return (
+    <details className="setting-section">
+      <summary style={{ cursor: 'pointer', paddingBlock: 10 }}>
+        <strong>免费体验与订阅方案</strong>
+      </summary>
+      <p className="setting-explain">现在可以免费体验文字聊天、雨后散步和 12 条自选记忆，无需绑定支付方式。</p>
+      <fieldset style={{ border: 0, margin: '16px 0', padding: 0 }}>
+        <legend className="field-label">会员拟定价 · 查看计费周期</legend>
+        <div className="pace-options">
+          <button type="button" aria-pressed={!annual} className={!annual ? 'selected' : ''} onClick={() => setAnnual(false)}>
+            <strong>月付</strong><small>¥29 / 月</small>
+          </button>
+          <button type="button" aria-pressed={annual} className={annual ? 'selected' : ''} onClick={() => setAnnual(true)}>
+            <strong>年付</strong><small>¥288 / 年</small>
+          </button>
+        </div>
+      </fieldset>
+      <p aria-live="polite">{annual ? '每年一次支付 ¥288，折合每月 ¥24。' : '每月支付 ¥29。'}</p>
+      <p className="setting-explain">会员计划增加聊天额度和可保存的记忆数量。付费服务筹备中，查看方案不会扣款或开启自动续费。</p>
+    </details>
+  );
+}
+
 export default function Companion({viewerKey}:{viewerKey:string}) {
   const [saved,setSaved]=useState<Saved>(initial),[ready,setReady]=useState(false),[page,setPage]=useState<Page>('home');
   const [draft,setDraft]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[toast,setToast]=useState('');
@@ -114,7 +139,8 @@ export default function Companion({viewerKey}:{viewerKey:string}) {
       {page==='home'&&<div className="page-scroll home-page">
         <div className="portrait-card"><span className="portrait-label"><span/> AI COMPANION</span><div className="portrait-sun"/><div className="portrait-arch"><span>晚</span><Flower2 size={62} strokeWidth={.7}/></div><div className="portrait-caption"><span>一起，把日子过得柔软一点。</span><strong>晚晴 <small>Wǎn qíng</small></strong></div></div>
         <div className="hello"><span className="eyebrow">{lastReply?'接着上次的话':'很高兴，在这里遇见你'}</span><h2>{saved.nickname ? `${saved.nickname}，今天过得怎么样？` : '今天过得怎么样？'}</h2><p>{lastReply?lastReply.text.slice(0,90)+(lastReply.text.length>90?'…':''):'我是晚晴。喜欢雨后散步、旧书店，还有认真听完一个故事。今天，想从哪件小事说起？'}</p>{!lastReply&&<small className="script-label">角色开场白</small>}</div>
-        <button className="primary big" onClick={()=>enter(saved.scene)} disabled={!ready}><MessageCircle size={18}/> {saved.messages.length?'继续上次的聊天':'聊聊今天'}<ArrowRight size={18}/></button>
+        <button className="primary big" onClick={()=>enter(saved.scene)} disabled={!ready}><MessageCircle size={18}/> {saved.messages.length?'继续上次的聊天':'免费和晚晴聊聊'}<ArrowRight size={18}/></button>
+        <MembershipPlans/>
         <button className="scene-card" onClick={()=>enter('walk')}><span className="scene-icon"><Umbrella size={24} strokeWidth={1.4}/></span><span><strong>去雨后的街上走走</strong><small>虚拟约会 · 一段不赶时间的散步</small></span><ChevronRight size={17}/></button>
         <p className="home-foot"><span className={status?.configured?'status-dot':'status-dot muted-dot'}/>{status?.configured?'真实模型已配置':'正在等待模型连接'}<span>只需把话说给她听</span></p>
       </div>}
@@ -138,6 +164,7 @@ export default function Companion({viewerKey}:{viewerKey:string}) {
         {!saved.memories.length?<div className="empty-state"><Bookmark size={30} strokeWidth={1.2}/><h3>从一件小事开始</h3><p>比如你喜欢的称呼、口味，<br/>或希望晚晴尊重的相处边界。</p><button className="secondary" onClick={()=>setEditing({id:null,text:''})}>记下第一件小事</button></div>:<div className="memory-list">{saved.memories.map(m=><article className="memory-card" key={m.id}><span className="memory-flower"><Flower2 size={20} strokeWidth={1.2}/></span><div><p>{m.text}</p><small>你确认保存 · {date(m.at)}</small><div className="memory-actions"><button onClick={()=>setEditing({id:m.id,text:m.text})}>编辑</button><button onClick={()=>deleteMemory(m.id)}>删除</button></div></div></article>)}</div>}
         <p className="data-note"><ShieldCheck size={15}/>修改或删除记忆会开启新的聊天上下文。已有聊天记录仍可查看，也可在设置中清空。</p></div>}
       {page==='settings'&&<div className="page-scroll settings-page"><div className="profile-card"><span className="profile-icon"><UserRound size={25} strokeWidth={1.4}/></span><div><strong>{saved.nickname||'以你舒服的方式'}</strong><small>这是属于你的相处空间</small></div><Heart size={20} strokeWidth={1.2}/></div>
+        <MembershipPlans/>
         <div className="setting-section"><h3>相处偏好</h3><label className="field-label" htmlFor="nickname">希望晚晴怎么称呼你</label><input id="nickname" maxLength={20} placeholder="填写昵称（可选）" value={saved.nickname} onChange={e=>setSaved(s=>({...s,nickname:e.target.value}))}/><span className="field-label">我们的节奏</span><div className="pace-options"><button className={saved.pace==='slow'?'selected':''} onClick={()=>setSaved(s=>({...s,pace:'slow'}))}><Moon size={17}/><strong>慢慢熟悉</strong><small>轻松聊，慢一点靠近</small>{saved.pace==='slow'&&<Check size={14}/>}</button><button className={saved.pace==='close'?'selected':''} onClick={()=>setSaved(s=>({...s,pace:'close'}))}><Heart size={17}/><strong>温柔亲近</strong><small>多一点亲昵和回应</small>{saved.pace==='close'&&<Check size={14}/>}</button></div></div>
         <div className="setting-section"><h3>对话服务</h3><div className="model-card"><Sparkles size={20}/><div><strong>{status?.model||'真实 AI 模型'}</strong><small>{status?.configured?'服务端已配置 · 每条回复独立生成':'模型状态暂时不可用'}</small></div><span className={status?.configured?'status-dot':'status-dot muted-dot'}/></div><p className="setting-explain">发送消息时，最近的对话、昵称和你确认的记忆会提交给 OpenAI。当前体验版提供文字聊天；不包含语音通话或主动推送。</p></div>
         <div className="setting-section"><h3>你的数据，由你做主</h3><p className="setting-explain">记录仅保存在此浏览器，不会跨设备同步。清除浏览器数据会丢失记录。服务端不建立聊天数据库；请求可能在内存中短暂保留用于重试。</p><button className="setting-row" onClick={exportData}><Download size={17}/><span>导出聊天与记忆</span><ChevronRight size={16}/></button><button className="setting-row" onClick={()=>setConfirm('chat')}><MessageCircle size={17}/><span>清空聊天记录</span><ChevronRight size={16}/></button><button className="setting-row danger" onClick={()=>setConfirm('all')}><Trash2 size={17}/><span>清除本机全部数据</span><ChevronRight size={16}/></button></div><p className="footer-note">晚晴是虚构的成年 AI 角色。<br/>愿这里的温柔，也陪你走回真实的生活。</p></div>}
