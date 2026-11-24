@@ -222,6 +222,8 @@ function CompanionSession({viewerKey}:{viewerKey:string}) {
       </div>}
       {page==='chat'&&<div className="chat-page">
         {saved.scene==='walk'&&<div className="scene-banner"><Umbrella size={15}/><span>雨后散步 · 虚拟情境</span><button onClick={()=>{resetContext();setSaved(s=>({...s,scene:'daily',contextAfter:Date.now()}));setToast('已回到日常聊天，虚拟情境不会带入新上下文。');}}>结束约会</button></div>}
+        <div className="conversation-canvas">
+          <img className="chat-backdrop" src={avatar} alt="" aria-hidden="true"/>
         <div className="chat-scroll" onScroll={event=>{const list=event.currentTarget;setReadingHistory(list.scrollHeight-list.scrollTop-list.clientHeight>80);}} aria-live="polite" aria-busy={busy}>
           <div className="conversation-note"><img className="tiny-avatar face" src={avatar} alt=""/><span>这里是你和晚晴的 AI 对话</span><small>聊天与记忆保存在当前浏览器</small></div>
           {!saved.messages.length&&<div className="opening"><img className="tiny-avatar face" src={avatar} alt="" /><div><p>{saved.scene==='walk'?'雨刚停。想不想一起沿着街边走一段？我们可以慢慢聊。':'你来啦。今天有什么想说的？开心的小事，或是藏了一整天的心事，都可以。'}</p><small>角色开场白 · 非模型回复</small></div></div>}
@@ -232,6 +234,7 @@ function CompanionSession({viewerKey}:{viewerKey:string}) {
           {busy&&<div className="typing"><span/><span/><span/><small>晚晴正在想怎么回应…</small></div>}
           {error&&<div className="chat-error" role="alert"><p>{error}</p>{lastRequest.current&&<button onClick={()=>{const r=lastRequest.current;if(r)void requestReply(r.body,r.id);}}>重试这条消息</button>}<small>消息已保留，无需重新输入</small></div>}
           <div ref={end}/>
+        </div>
         </div>
         {!saved.messages.length&&!busy&&!draft.trim()&&<div className="prompts">{(saved.scene==='walk'?['陪我走走吧','想听听你眼里的雨后']:['今天有点累','分享一件开心的小事']).map(t=><button key={t} onClick={()=>{setDraft(t);messageInput.current?.focus();}}>{t}</button>)}</div>}
         {readingHistory && <button type="button" className="text-button" style={{alignSelf:'center',padding:'8px 12px'}} onClick={()=>{end.current?.scrollIntoView({block:'end'});setReadingHistory(false);}}>回到最新消息 ↓</button>}
