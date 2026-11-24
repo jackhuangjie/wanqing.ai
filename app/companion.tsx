@@ -36,7 +36,7 @@ function MembershipPlans({region, setRegion, annual, setAnnual}: {
       <summary style={{ cursor: 'pointer', paddingBlock: 10 }}>
         <strong>免费体验与订阅方案</strong>
       </summary>
-      <p className="setting-explain">现在可以免费体验文字聊天、雨后散步和 12 条自选记忆，无需绑定支付方式。</p>
+      <p className="setting-explain">免费试用 · 每人每天 10 次 AI 请求，可体验雨后散步和 12 条记忆，无需绑卡。全站每天开放 300 次，北京时间零点更新。请求发往模型时计次。</p>
       <label className="field-label" style={{display:'grid', gap:8}}>
         账单地区
         <select value={region} onChange={event => setRegion(event.target.value === 'cn' ? 'cn' : 'international')}
@@ -57,7 +57,7 @@ function MembershipPlans({region, setRegion, annual, setAnnual}: {
         </div>
       </fieldset>
       <p aria-live="polite">{annual ? `预计每年一次支付 ${price(offer.yearly)}，平均每月约 ${price(offer.yearly / 12)}。` : `预计每月支付 ${price(offer.monthly)}。`}</p>
-      <p className="setting-explain">会员计划增加聊天额度和可保存的记忆数量。付费服务筹备中，查看方案不会扣款或开启自动续费。</p>
+      <p className="setting-explain">陪伴会员（筹备中）· 拟提供每天 100 次 AI 请求和 60 条记忆，月付与年付权益相同。当前仅开放免费试聊，查看价格不会产生订阅或扣款。</p>
     </details>
   );
 }
@@ -113,6 +113,7 @@ function CompanionSession({viewerKey}:{viewerKey:string}) {
   function stop(){generation.current++;control.current?.abort();control.current=null;busyRef.current=false;setBusy(false);}
   function resetContext(){stop();lastRequest.current=null;setError('');}
   function enter(scene:Scene){
+    if(viewerKey==='preview'){window.location.assign('/signin-with-chatgpt?return_to=%2F');return;}
     setReadingHistory(false);
     if(!saved.adult){setConsent(scene);setAgreed(false);return;}
     if(saved.scene!==scene){resetContext();setSaved(s=>({...s,scene,contextAfter:Date.now()}));}
@@ -215,7 +216,7 @@ function CompanionSession({viewerKey}:{viewerKey:string}) {
       {page==='home'&&<div className="page-scroll home-page">
         <div className="portrait-card"><img className="portrait-photo" src={avatar} alt="晚晴的头像"/><div className="portrait-caption"><strong>晚晴 <small>Wǎn qíng</small></strong></div></div>
         <div className="hello"><h2>{saved.nickname ? `${saved.nickname}，今天过得怎么样？` : '今天过得怎么样？'}</h2><p>{lastReply?lastReply.text.slice(0,90)+(lastReply.text.length>90?'…':''):'我刚从旧书店回来。你呢，今天有什么小事想和我说？'}</p>{!lastReply&&<small className="script-label">角色开场白</small>}</div>
-        <button className="primary big" onClick={()=>enter(saved.scene)} disabled={!ready}><MessageCircle size={18}/> {draft.trim()?'继续写草稿':saved.messages.length?'继续上次的聊天':'免费和晚晴聊聊'}<ArrowRight size={18}/></button>
+        <button className="primary big" onClick={()=>enter(saved.scene)} disabled={!ready}><MessageCircle size={18}/> {viewerKey==='preview'?'登录后免费试聊':draft.trim()?'继续写草稿':saved.messages.length?'继续上次的聊天':'免费和晚晴聊聊'}<ArrowRight size={18}/></button>
         <button className="scene-card" onClick={()=>enter('walk')}><span className="scene-icon"><Umbrella size={24} strokeWidth={1.4}/></span><span><strong>去雨后的街上走走</strong><small>虚拟约会 · 一段不赶时间的散步</small></span><ChevronRight size={17}/></button>
         <MembershipPlans region={billingRegion} setRegion={setBillingRegion} annual={annual} setAnnual={setAnnual}/>
         <p className="home-foot"><span className={status?.configured?'status-dot':'status-dot muted-dot'}/>{status?.configured?'AI 对话已配置':status?'AI 对话尚未配置':'暂未确认 AI 连接状态'}</p>
@@ -255,7 +256,7 @@ function CompanionSession({viewerKey}:{viewerKey:string}) {
       {page!=='chat'&&<nav className="bottom-nav" aria-label="主导航">{[{id:'home',label:'她',Icon:Flower2},{id:'memories',label:'我们',Icon:Heart},{id:'settings',label:'我的',Icon:UserRound}].map(({id,label,Icon})=><button key={id} className={page===id?'active':''} onClick={()=>setPage(id as Page)} aria-current={page===id?'page':undefined}><Icon size={21} strokeWidth={1.6}/><span>{label}</span></button>)}</nav>}
     </section>
     {toast&&<div className="toast" role="status"><Check size={16}/>{toast}</div>}
-    {consent!==null&&<div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true" aria-labelledby="consent-title"><button className="modal-close icon-button" aria-label="关闭" onClick={()=>setConsent(null)}><X size={19}/></button><span className="modal-flower"><Flower2 size={30} strokeWidth={1.3}/></span><h2 id="consent-title">在开始之前</h2><p>晚晴是一位虚构的成年 AI 女友。这里的交流由模型生成，不能替代现实关系或专业帮助。</p><p>发消息时，你的对话和确认保存的记忆将提交给 OpenAI 生成回复。</p><label className="checkbox-row"><input type="checkbox" checked={agreed} onChange={e=>setAgreed(e.target.checked)}/><span>我已满 18 岁，了解并同意以上说明。</span></label><button className="primary" disabled={!agreed} onClick={()=>{setSaved(s=>({...s,adult:true,scene:consent,contextAfter:Date.now()}));setConsent(null);setPage('chat');}}>开始和晚晴聊天<ArrowRight size={17}/></button></div></div>}
+    {consent!==null&&<div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true" aria-labelledby="consent-title"><button className="modal-close icon-button" aria-label="关闭" onClick={()=>setConsent(null)}><X size={19}/></button><span className="modal-flower"><Flower2 size={30} strokeWidth={1.3}/></span><h2 id="consent-title">在开始之前</h2><p>公测期间每天可发起 10 次 AI 请求，北京时间零点恢复。无需绑卡。</p><p>晚晴是一位虚构的成年 AI 女友。这里的交流由模型生成，不能替代现实关系或专业帮助。</p><p>发消息时，你的对话和确认保存的记忆将提交给 OpenAI 生成回复。</p><label className="checkbox-row"><input type="checkbox" checked={agreed} onChange={e=>setAgreed(e.target.checked)}/><span>我已满 18 岁，了解并同意以上说明。</span></label><button className="primary" disabled={!agreed} onClick={()=>{setSaved(s=>({...s,adult:true,scene:consent,contextAfter:Date.now()}));setConsent(null);setPage('chat');}}>开始和晚晴聊天<ArrowRight size={17}/></button></div></div>}
     {editing&&<div className="modal-backdrop"><form className="modal" role="dialog" aria-modal="true" aria-labelledby="memory-title" onSubmit={e=>{e.preventDefault();saveMemory();}}><button type="button" className="modal-close icon-button" aria-label="关闭记忆编辑" onClick={()=>setEditing(null)}><X size={19}/></button><span className="modal-flower"><Bookmark size={28} strokeWidth={1.3}/></span><h2 id="memory-title">{editing.id?'编辑这件小事':'让晚晴记住这件事'}</h2><p>保存后，这条内容会用于之后的对话。请只留下你愿意分享的信息。</p><label className="sr-only" htmlFor="memory">记忆内容</label><textarea id="memory" autoFocus maxLength={150} rows={4} placeholder="比如：我喜欢喝不加糖的乌龙茶。" value={editing.text} onChange={e=>setEditing({...editing,text:e.target.value})}/><div className="character-count">{editing.text.length} / 150</div><button className="primary" disabled={!editing.text.trim()}>确认保存<Check size={17}/></button></form></div>}
     {confirm&&<div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true" aria-labelledby="clear-title"><h2 id="clear-title">{confirm==='all'?'清除全部本机数据？':'清空聊天记录？'}</h2><p>{confirm==='all'?'这会删除此浏览器中的聊天、记忆和偏好，无法撤销。需要留存的话，请先导出。':'聊天记录会从此浏览器删除。你确认保存的记忆会继续保留。'}</p><div className="dialog-actions"><button className="secondary" onClick={()=>setConfirm(null)}>取消</button><button className="primary" onClick={clearData}>确认清除</button></div></div></div>}
   </main>;

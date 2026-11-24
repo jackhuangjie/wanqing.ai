@@ -7,12 +7,12 @@ const inFlight = new Set<string>();
 const completed = new Map<string,{at:number;fingerprint:string;result:unknown}>();
 const json = (value:unknown,status=200) => Response.json(value,{status,headers:{'Cache-Control':'no-store'}});
 
-// This endpoint relies on the owner-private Sites access boundary, including
-// authorized service access. Revisit authorization before changing the audience.
 export async function POST(request:Request) {
   let id = '';
   let ownsFlight = false;
   try {
+    const viewer=request.headers.get('oai-authenticated-user-id');
+    if (!viewer || !request.headers.get('oai-authenticated-user-email')) throw new ChatError('请先登录 ChatGPT，再开始免费试聊。',401);
     const origin=request.headers.get('origin');
     if (origin && origin !== new URL(request.url).origin) throw new ChatError('请求来源无效。',403);
     if (!request.headers.get('content-type')?.includes('application/json')) throw new ChatError('请发送 JSON 请求。',415);
@@ -23,7 +23,6 @@ export async function POST(request:Request) {
     const data=validateChat(body);
     const suppliedId=request.headers.get('x-request-id');
     if (!suppliedId || !/^[a-zA-Z0-9-]{16,64}$/.test(suppliedId)) throw new ChatError('缺少有效请求编号。');
-    const viewer=request.headers.get('oai-authenticated-user-id') || 'private-service';
     id=viewer+':'+suppliedId;
     const now=Date.now();
     for (const [key,value] of completed) if (now-value.at>300000) completed.delete(key);
@@ -40,6 +39,14 @@ export async function POST(request:Request) {
     inFlight.add(id);
     ownsFlight = true;
     const config=env as unknown as Record<string,string>;
+    if (!env.DB || !config.OPENAI_API_KEY) throw new ChatError('试聊服务暂未就绪，请稍后再来。',503);
+    const day = new Date(Date.now()+8*3600000).toISOString().slice(0,10);
+    const quota = await env.DB.prepare(`
+      INSERT INTO daily_usage(day,viewer,attempts)
+      SELECT ?,?,1 WHERE (SELECT COALESCE(SUM(attempts),0) FROM daily_usage WHERE day=?) < 300
+      ON CONFLICT(day,viewer) DO UPDATE SET attempts=attempts+1 WHERE attempts<10
+    `).bind(day,viewer,day).run();
+    if (!quota.meta.changes) throw new ChatError('你或全站的今日试聊额度已用完，北京时间零点恢复。',429,'daily_limit');
     const result=await callModel(data,config.OPENAI_API_KEY,config.OPENAI_MODEL||DEFAULT_MODEL,fetch,AbortSignal.timeout(45000));
     completed.set(id,{at:Date.now(),fingerprint,result});
     if(completed.size>100) completed.delete(completed.keys().next().value!);

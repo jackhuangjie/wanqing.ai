@@ -1,4 +1,7 @@
-// Intentionally empty by default.
-// Add Drizzle tables here when the site actually needs a database.
-// See examples/d1/db/schema.ts for an opt-in example.
-export {};
+import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+
+export const dailyUsage = sqliteTable('daily_usage', {
+  day: text('day').notNull(),
+  viewer: text('viewer').notNull(),
+  attempts: integer('attempts').notNull(),
+}, table => [primaryKey({ columns: [table.day, table.viewer] })]);
