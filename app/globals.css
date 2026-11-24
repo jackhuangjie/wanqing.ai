@@ -40,3 +40,28 @@
 .avatar-tools label {background:var(--soft);overflow:hidden;}
 .avatar-tools input {position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;}
 .avatar-tools label:focus-within {outline:2px solid var(--rose);}
+
+.conversation-canvas {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: #faf3ed;
+}
+.chat-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 37%;
+  opacity: .36;
+  pointer-events: none;
+}
+.conversation-canvas .chat-scroll { position: relative; min-width: 0; }
+.conversation-canvas :is(.conversation-note, .conversation-note small, .message-meta, .model-meta, .opening small) { color: #493c38; }
+@media (prefers-contrast: more) {
+  .chat-backdrop { opacity: .12; }
+}
