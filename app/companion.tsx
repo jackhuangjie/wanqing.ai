@@ -5,7 +5,7 @@ import { ArrowLeft, ArrowRight, Bookmark, Check, ChevronRight, Download, Flower2
 type Scene='daily'|'walk';
 type Message={id:string;role:'user'|'assistant';text:string;at:number;scene:Scene;model?:string;latency?:number};
 type Memory={id:string;text:string;at:number};
-type Saved={messages:Message[];memories:Memory[];nickname:string;pace:'slow'|'close';adult:boolean;contextAfter:number;scene:Scene};
+type Saved={avatar?:string;messages:Message[];memories:Memory[];nickname:string;pace:'slow'|'close';adult:boolean;contextAfter:number;scene:Scene};
 type Page='home'|'chat'|'memories'|'settings';
 type Payload={adultConfirmed:true;messages:{role:string;content:string}[];memories:string[];nickname:string;pace:string;scene:Scene};
 type Reply={text?:string;model?:string;incomplete?:boolean;error?:{message?:string}};
@@ -96,6 +96,7 @@ function CompanionSession({viewerKey}:{viewerKey:string}) {
     try {
       const raw=localStorage.getItem(key);
       if(raw){const s=JSON.parse(raw);setSaved({
+        avatar:typeof s.avatar==='string' && /^data:image\/jpeg;base64,/.test(s.avatar) ? s.avatar : undefined,
         messages:Array.isArray(s.messages)?s.messages.filter((m:Message)=>m&&['user','assistant'].includes(m.role)&&typeof m.text==='string'&&typeof m.at==='number').slice(-180):[],
         memories:Array.isArray(s.memories)?s.memories.filter((m:Memory)=>m&&typeof m.id==='string'&&typeof m.text==='string').slice(0,12).map((m:Memory)=>({...m,text:m.text.slice(0,150)})):[],
         nickname:typeof s.nickname==='string'?s.nickname.slice(0,20):'',pace:s.pace==='slow'?'slow':'close',adult:s.adult===true,
@@ -146,6 +147,36 @@ function CompanionSession({viewerKey}:{viewerKey:string}) {
     setSaved(s=>({...s,messages:[...s.messages,message].slice(-180)}));setDraft('');
     void requestReply(body,message.id);
   }
+  const avatar = saved.avatar || '/wanqing.webp';
+  const avatarRevision = useRef(0);
+  async function chooseAvatar(file?: File) {
+    if (!file) return;
+    const revision = ++avatarRevision.current;
+    if (!['image/jpeg','image/png','image/webp'].includes(file.type) || file.size > 8 * 1024 * 1024) {
+      setToast('请选择 8 MB 以内的 JPG、PNG 或 WebP 图片。');
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    try {
+      const photo = new Image();
+      photo.src = url;
+      await photo.decode();
+      const size = Math.min(photo.naturalWidth, photo.naturalHeight);
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 480;
+      const ctx = canvas.getContext('2d');
+      if (!ctx || !size) throw new Error();
+      ctx.fillStyle = '#fff9f2';
+      ctx.fillRect(0, 0, 480, 480);
+      ctx.drawImage(photo, (photo.naturalWidth-size)/2, (photo.naturalHeight-size)/2, size, size, 0, 0, 480, 480);
+      const image = canvas.toDataURL('image/jpeg', 0.85);
+      if (avatarRevision.current !== revision) return;
+      setSaved(previous => ({...previous, avatar:image}));
+      setToast('晚晴的头像已更换。');
+    } catch {
+      if (avatarRevision.current === revision) setToast('这张图片无法打开，请换一张试试。');
+    } finally { URL.revokeObjectURL(url); }
+  }
   function saveMemory(){
     const value=editing?.text.trim();if(!value)return;
     if(!editing?.id&&saved.memories.length>=12){setToast('已保存 12 条，请先整理已有记忆。');return;}
@@ -156,7 +187,7 @@ function CompanionSession({viewerKey}:{viewerKey:string}) {
   function deleteMemory(id:string){resetContext();setSaved(s=>({...s,contextAfter:Date.now(),memories:s.memories.filter(m=>m.id!==id)}));setToast('记忆已删除；新的聊天上下文已开始。');}
   function clearData(){
     resetContext();setDraft('');
-    if(confirm==='all'){setSaved({...initial});setPage('home');setToast('本机聊天、记忆和偏好已清除。');}
+    if(confirm==='all'){avatarRevision.current++;setSaved({...initial});setPage('home');setToast('本机聊天、记忆和偏好已清除。');}
     else{setSaved(s=>({...s,messages:[],contextAfter:Date.now(),scene:'daily'}));setToast('聊天已清空，已确认的记忆仍保留。');}
     setConfirm(null);
   }
@@ -180,9 +211,9 @@ function CompanionSession({viewerKey}:{viewerKey:string}) {
       <div className="private-note"><ShieldCheck size={17}/><div>私享体验版<small>真实 AI 对话 · 手动确认记忆</small></div></div>
     </aside>
     <section className="app" aria-label="晚晴 AI 女友应用">
-      <header className="app-header"><div className="header-left">{page==='chat'?<button className="icon-button" aria-label="返回首页" onClick={()=>setPage('home')}><ArrowLeft size={20}/></button>:<span className="tiny-avatar"><Flower2 size={21}/></span>}<div><strong>{page==='memories'?'我们的小事':page==='settings'?'我的空间':'晚晴'}</strong><small>{page==='chat'?'AI 女友 · 回复由模型生成':page==='memories'?'被认真记下的，才会被记住':page==='settings'?'按你的节奏相处':'26 岁 · 虚构成年 AI 角色'}</small></div></div><button className="icon-button" aria-label={page==='chat'?'清空聊天':'打开设置'} onClick={()=>page==='chat'?setConfirm('chat'):setPage('settings')}>{page==='chat'?<Trash2 size={18}/>:<Settings2 size={19}/>}</button></header>
+      <header className="app-header"><div className="header-left">{page==='chat'?<button className="icon-button" aria-label="返回首页" onClick={()=>setPage('home')}><ArrowLeft size={20}/></button>:<img className="tiny-avatar face" src={avatar} alt="" />}<div><strong>{page==='memories'?'我们的小事':page==='settings'?'我的空间':'晚晴'}</strong><small>{page==='chat'?'AI 女友 · 回复由模型生成':page==='memories'?'被认真记下的，才会被记住':page==='settings'?'按你的节奏相处':'26 岁 · 虚构成年 AI 角色'}</small></div></div><button className="icon-button" aria-label={page==='chat'?'清空聊天':'打开设置'} onClick={()=>page==='chat'?setConfirm('chat'):setPage('settings')}>{page==='chat'?<Trash2 size={18}/>:<Settings2 size={19}/>}</button></header>
       {page==='home'&&<div className="page-scroll home-page">
-        <div className="portrait-card"><div className="portrait-sun"/><div className="portrait-arch"><span>晚</span><Flower2 size={62} strokeWidth={.7}/></div><div className="portrait-caption"><strong>晚晴 <small>Wǎn qíng</small></strong></div></div>
+        <div className="portrait-card"><img className="portrait-photo" src={avatar} alt="晚晴的头像"/><div className="portrait-caption"><strong>晚晴 <small>Wǎn qíng</small></strong></div></div>
         <div className="hello"><h2>{saved.nickname ? `${saved.nickname}，今天过得怎么样？` : '今天过得怎么样？'}</h2><p>{lastReply?lastReply.text.slice(0,90)+(lastReply.text.length>90?'…':''):'我刚从旧书店回来。你呢，今天有什么小事想和我说？'}</p>{!lastReply&&<small className="script-label">角色开场白</small>}</div>
         <button className="primary big" onClick={()=>enter(saved.scene)} disabled={!ready}><MessageCircle size={18}/> {draft.trim()?'继续写草稿':saved.messages.length?'继续上次的聊天':'免费和晚晴聊聊'}<ArrowRight size={18}/></button>
         <button className="scene-card" onClick={()=>enter('walk')}><span className="scene-icon"><Umbrella size={24} strokeWidth={1.4}/></span><span><strong>去雨后的街上走走</strong><small>虚拟约会 · 一段不赶时间的散步</small></span><ChevronRight size={17}/></button>
@@ -192,8 +223,8 @@ function CompanionSession({viewerKey}:{viewerKey:string}) {
       {page==='chat'&&<div className="chat-page">
         {saved.scene==='walk'&&<div className="scene-banner"><Umbrella size={15}/><span>雨后散步 · 虚拟情境</span><button onClick={()=>{resetContext();setSaved(s=>({...s,scene:'daily',contextAfter:Date.now()}));setToast('已回到日常聊天，虚拟情境不会带入新上下文。');}}>结束约会</button></div>}
         <div className="chat-scroll" onScroll={event=>{const list=event.currentTarget;setReadingHistory(list.scrollHeight-list.scrollTop-list.clientHeight>80);}} aria-live="polite" aria-busy={busy}>
-          <div className="conversation-note"><Flower2 size={18}/><span>这里是你和晚晴的 AI 对话</span><small>聊天与记忆保存在当前浏览器</small></div>
-          {!saved.messages.length&&<div className="opening"><span className="tiny-avatar"><Flower2 size={20}/></span><div><p>{saved.scene==='walk'?'雨刚停。想不想一起沿着街边走一段？我们可以慢慢聊。':'你来啦。今天有什么想说的？开心的小事，或是藏了一整天的心事，都可以。'}</p><small>角色开场白 · 非模型回复</small></div></div>}
+          <div className="conversation-note"><img className="tiny-avatar face" src={avatar} alt=""/><span>这里是你和晚晴的 AI 对话</span><small>聊天与记忆保存在当前浏览器</small></div>
+          {!saved.messages.length&&<div className="opening"><img className="tiny-avatar face" src={avatar} alt="" /><div><p>{saved.scene==='walk'?'雨刚停。想不想一起沿着街边走一段？我们可以慢慢聊。':'你来啦。今天有什么想说的？开心的小事，或是藏了一整天的心事，都可以。'}</p><small>角色开场白 · 非模型回复</small></div></div>}
           {saved.messages.map((m,i)=><div key={m.id}>
             {(i===0||date(m.at)!==date(saved.messages[i-1].at))&&<div className="date-line">{date(m.at)}</div>}
             <div className={'message '+m.role}><div className="bubble">{m.text}</div><div className="message-meta"><span>{m.role==='assistant'?'晚晴 · AI':'你'} · {time(m.at)}{m.scene==='walk'?' · 虚拟约会':''}</span>{m.role==='user'&&m.scene!=='walk'&&<button aria-label="将这条消息存为记忆" title="存为记忆" onClick={()=>setEditing({id:null,text:m.text.slice(0,150)})}><Bookmark size={12}/></button>}</div>{m.role==='assistant'&&m.model&&<small className="model-meta">{m.model} · {m.latency} 秒</small>}</div>
@@ -211,6 +242,10 @@ function CompanionSession({viewerKey}:{viewerKey:string}) {
         <p className="data-note"><ShieldCheck size={15}/>修改或删除记忆会开启新的聊天上下文。已有聊天记录仍可查看，也可在设置中清空。</p></div>}
       {page==='settings'&&<div className="page-scroll settings-page"><div className="profile-card"><span className="profile-icon"><UserRound size={25} strokeWidth={1.4}/></span><div><strong>{saved.nickname||'以你舒服的方式'}</strong><small>这是属于你的相处空间</small></div><Heart size={20} strokeWidth={1.2}/></div>
         <MembershipPlans region={billingRegion} setRegion={setBillingRegion} annual={annual} setAnnual={setAnnual}/>
+        <section className="setting-section"><h3>晚晴的头像</h3>
+          <div className="avatar-tools"><img src={avatar} alt="当前头像"/><label>更换照片<input type="file" disabled={!ready} accept="image/jpeg,image/png,image/webp" onChange={e=>{const file=e.target.files?.[0];e.target.value='';void chooseAvatar(file);}}/></label>
+          {saved.avatar && <button type="button" onClick={()=>{avatarRevision.current++;setSaved(s=>({...s,avatar:undefined}));setToast('已恢复晚晴的默认头像。');}}>恢复默认</button>}</div>
+          <p className="setting-explain">照片会居中裁成方形，仅保存在当前浏览器。</p></section>
         <div className="setting-section"><h3>相处偏好</h3><label className="field-label" htmlFor="nickname">希望晚晴怎么称呼你</label><input id="nickname" maxLength={20} placeholder="填写昵称（可选）" value={saved.nickname} onChange={e=>setSaved(s=>({...s,nickname:e.target.value}))}/><span className="field-label">我们的节奏</span><div className="pace-options"><button className={saved.pace==='slow'?'selected':''} onClick={()=>setSaved(s=>({...s,pace:'slow'}))}><Moon size={17}/><strong>慢慢熟悉</strong><small>轻松聊，慢一点靠近</small>{saved.pace==='slow'&&<Check size={14}/>}</button><button className={saved.pace==='close'?'selected':''} onClick={()=>setSaved(s=>({...s,pace:'close'}))}><Heart size={17}/><strong>温柔亲近</strong><small>多一点亲昵和回应</small>{saved.pace==='close'&&<Check size={14}/>}</button></div></div>
         <div className="setting-section"><h3>对话服务</h3><div className="model-card"><Sparkles size={20}/><div><strong>{status?.model||'真实 AI 模型'}</strong><small>{status?.configured?'服务端已配置 · 每条回复独立生成':'模型状态暂时不可用'}</small></div><span className={status?.configured?'status-dot':'status-dot muted-dot'}/></div><p className="setting-explain">发送消息时，最近的对话、昵称和你确认的记忆会提交给 OpenAI。当前体验版提供文字聊天；不包含语音通话或主动推送。</p></div>
         <div className="setting-section"><h3>你的数据，由你做主</h3><p className="setting-explain">记录仅保存在此浏览器，不会跨设备同步。清除浏览器数据会丢失记录。服务端不建立聊天数据库；请求可能在内存中短暂保留用于重试。</p><button className="setting-row" onClick={exportData}><Download size={17}/><span>导出聊天与记忆</span><ChevronRight size={16}/></button><button className="setting-row" onClick={()=>setConfirm('chat')}><MessageCircle size={17}/><span>清空聊天记录</span><ChevronRight size={16}/></button><button className="setting-row danger" onClick={()=>setConfirm('all')}><Trash2 size={17}/><span>清除本机全部数据</span><ChevronRight size={16}/></button></div><p className="footer-note">晚晴是虚构的成年 AI 角色。<br/>愿这里的温柔，也陪你走回真实的生活。</p></div>}
